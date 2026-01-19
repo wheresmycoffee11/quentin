@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 ZOOM_LINK = "https://us06web.zoom.us/j/81195928527?pwd=I4fhjlHpuE8r4KiGGSTuiggcNiq5TF.1"
-CALENDAR_LINK = "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=NW9naXNmNTJwNmtmMnQ1MDkwbnRpbHA0NTRfMjAyNDEyMTlUMTcwMDAwWiBjXzI2YjE0MmU5Njc3YzYzMWNhODUzYjBkMDJjYTRjZWZmNTMzNzhkOWE3YzczOTJjYzRkNTAxMmExODEzMjE2ZTlAZw&tmsrc=c_26b142e9677c631ca853b0d02ca4ceff53378d9a7c7392cc4d5012a1813216e9%40group.calendar.google.com&scp=ALL"
+CALENDAR_LINK = "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=NzRscWFyNzQ2Mms1MXYzcGI1YTJqZHFlaDBfMjAyNjAxMjJUMTcwMDAwWiBjXzI2YjE0MmU5Njc3YzYzMWNhODUzYjBkMDJjYTRjZWZmNTMzNzhkOWE3YzczOTJjYzRkNTAxMmExODEzMjE2ZTlAZw&tmsrc=c_26b142e9677c631ca853b0d02ca4ceff53378d9a7c7392cc4d5012a1813216e9%40group.calendar.google.com&scp=ALL"
 CHANNEL_NAME = "weekly-calls"
 ADMIN_USER_ID = os.environ.get("ADMIN_USER_ID")  # Your Slack user ID
 TIMEZONE = ZoneInfo("America/New_York")
