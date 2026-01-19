@@ -181,13 +181,9 @@ def handle_raised_hand(client, event, logger):
 
 Thanks for raising your hand for the weekly call!
 
-*Here's everything you need:*
-
-*Join the call:* <{ZOOM_LINK}|Click here to join on Zoom>
-
-*Add to calendar:* <{CALENDAR_LINK}|Add to Google Calendar>
-
 The call is *Thursday at 12:00 PM EST*.
+
+I'll send you a reminder with the Zoom link 1 hour before the call.
 
 ---
 
@@ -291,6 +287,46 @@ The call starts in 1 hour. {len(topics)} topic(s) submitted."""
         logger.error(f"Error sending consolidated topics: {e}")
 
 
+def send_reminders():
+    """Send reminder to all participants 1 hour before the call."""
+    conn = sqlite3.connect("topics.db")
+    cursor = conn.cursor()
+    week_of = get_current_week()
+
+    # Get all users who raised their hand this week
+    cursor.execute(
+        "SELECT user_id FROM notified_users WHERE week_of = ?",
+        (week_of,)
+    )
+    users = cursor.fetchall()
+    conn.close()
+
+    if not users:
+        logger.info("No participants to remind this week")
+        return
+
+    reminder_message = f"""Hey! This is your reminder that the weekly call starts in 1 hour.
+
+*Join the call:* <{ZOOM_LINK}|Click here to join on Zoom>
+
+*Time:* Thursday at 12:00 PM EST (starting in 1 hour)
+
+See you soon!"""
+
+    sent_count = 0
+    for (user_id,) in users:
+        try:
+            app.client.chat_postMessage(
+                channel=user_id,
+                text=reminder_message
+            )
+            sent_count += 1
+        except Exception as e:
+            logger.error(f"Error sending reminder to {user_id}: {e}")
+
+    logger.info(f"Sent reminders to {sent_count} participant(s)")
+
+
 def clear_after_call():
     """Clear the week's data after the call (runs Thursday at 2 PM EST)."""
     clear_week_data()
@@ -317,6 +353,14 @@ scheduler.add_job(
     send_consolidated_topics,
     CronTrigger(day_of_week="thu", hour=11, minute=0, timezone=TIMEZONE),
     id="send_topics",
+    replace_existing=True
+)
+
+# Schedule participant reminders - Thursday at 11:00 AM EST (1 hour before noon call)
+scheduler.add_job(
+    send_reminders,
+    CronTrigger(day_of_week="thu", hour=11, minute=0, timezone=TIMEZONE),
+    id="send_reminders",
     replace_existing=True
 )
 
