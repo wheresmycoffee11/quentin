@@ -143,9 +143,12 @@ def handle_raised_hand(client, event, logger):
     logger.info(f"Reaction: {reaction}, User: {user_id}, Channel: {channel_id}")
 
     # Check if it's a raised hand emoji (various forms)
-    raised_hand_emojis = ["raised_hand", "hand", "raising_hand", "raised_hands"]
-    if reaction not in raised_hand_emojis:
-        logger.info(f"Reaction '{reaction}' not in raised hand list, ignoring")
+    # Use startswith to catch skin tone variations like "hand::skin-tone-2"
+    raised_hand_emojis = ["raised_hand", "hand", "raising_hand", "raised_hands", "raised_back_of_hand"]
+    is_raised_hand = any(reaction.startswith(emoji) for emoji in raised_hand_emojis)
+
+    if not is_raised_hand:
+        logger.info(f"Reaction '{reaction}' not a raised hand emoji, ignoring")
         return
 
     # Verify it's in the correct channel
