@@ -129,6 +129,69 @@ def clear_week_data():
     conn.close()
 
 
+def get_meeting_phase():
+    """Determine where we are relative to the Thursday meeting.
+
+    Returns one of:
+      'before_reminder' - not Thursday, or before Thu 11 AM, or after Thu 2 PM
+                          (data is cleared at 2 PM so new reactions work for next week)
+      'after_reminder'  - Thursday 11 AM to 12 PM (call starts soon, include Zoom link)
+      'live'            - Thursday 12 PM to 1 PM (call is live)
+      'after_call'      - Thursday 1 PM to 2 PM (call just ended, cleanup pending)
+    """
+    now = datetime.now(TIMEZONE)
+    if now.weekday() != 3:  # Not Thursday
+        return "before_reminder"
+    hour = now.hour
+    if hour < 11:
+        return "before_reminder"
+    elif hour < 12:
+        return "after_reminder"
+    elif hour < 13:
+        return "live"
+    elif hour < 14:
+        return "after_call"
+    else:
+        # After 2 PM cleanup — back to normal so next week's reactions work
+        return "before_reminder"
+
+
+def build_invite_message(first_name, phase):
+    """Build the appropriate DM based on the current meeting phase."""
+    if phase == "live":
+        return f"""Hey {first_name}!
+
+The weekly call is *live right now*! Jump in:
+
+*Join the call:* <{ZOOM_LINK}|Click here to join on Zoom>
+
+If you have a topic you'd like to bring up, just reply here and I'll pass it along to Chris!"""
+
+    elif phase == "after_reminder":
+        return f"""Hey {first_name}!
+
+Thanks for raising your hand for the weekly call!
+
+The call starts *today at 12:00 PM EST* — that's less than an hour away!
+
+*Join the call:* <{ZOOM_LINK}|Click here to join on Zoom>
+
+Is there anything specific you'd like to discuss on the call? Just reply here and I'll make sure Chris sees it before the session!"""
+
+    else:  # before_reminder
+        return f"""Hey {first_name}!
+
+Thanks for raising your hand for the weekly call!
+
+The call is *Thursday at 12:00 PM EST*.
+
+I'll send you a reminder with the Zoom link 1 hour before the call.
+
+---
+
+Is there anything specific you'd like to discuss on the call? Just reply here and I'll make sure Chris sees it before the session!"""
+
+
 # Event handler for reaction_added
 @app.event("reaction_added")
 def handle_raised_hand(client, event, logger):
@@ -162,10 +225,16 @@ def handle_raised_hand(client, event, logger):
         return
 
     week_of = get_current_week()
+    phase = get_meeting_phase()
 
     # Check if already notified this week
     if user_already_notified(user_id, week_of):
         logger.info(f"User {user_id} already notified this week, skipping")
+        return
+
+    # After the call is over, don't send anything
+    if phase == "after_call":
+        logger.info(f"Call is over for this week, ignoring reaction from {user_id}")
         return
 
     # Get user info for a friendly greeting
@@ -178,19 +247,9 @@ def handle_raised_hand(client, event, logger):
         first_name = "there"
         user_name = "Unknown"
 
-    # Send DM to the user
+    # Send DM to the user with phase-appropriate message
     try:
-        dm_message = f"""Hey {first_name}!
-
-Thanks for raising your hand for the weekly call!
-
-The call is *Thursday at 12:00 PM EST*.
-
-I'll send you a reminder with the Zoom link 1 hour before the call.
-
----
-
-Is there anything specific you'd like to discuss on the call? Just reply here and I'll make sure Chris sees it before the session!"""
+        dm_message = build_invite_message(first_name, phase)
 
         client.chat_postMessage(
             channel=user_id,  # DM by sending to user_id
@@ -198,7 +257,7 @@ Is there anything specific you'd like to discuss on the call? Just reply here an
         )
 
         mark_user_notified(user_id, week_of)
-        logger.info(f"Sent DM to {user_name} ({user_id})")
+        logger.info(f"Sent DM to {user_name} ({user_id}) [phase={phase}]")
 
     except Exception as e:
         logger.error(f"Error sending DM to {user_id}: {e}")
@@ -224,20 +283,44 @@ def handle_dm_response(client, event, logger):
         return
 
     week_of = get_current_week()
-
-    # Only save if they were notified (meaning they raised their hand)
-    if not user_already_notified(user_id, week_of):
-        # They're just messaging the bot without raising hand, could add handling here
-        return
+    phase = get_meeting_phase()
 
     # Get user name
     try:
         user_info = client.users_info(user=user_id)
         user_name = user_info["user"]["real_name"] or user_info["user"]["name"]
+        first_name = user_name.split()[0] if user_name else "there"
     except:
         user_name = "Unknown"
+        first_name = "there"
 
-    # Save the topic
+    # If they haven't been notified yet, treat this DM as them wanting to join
+    if not user_already_notified(user_id, week_of):
+        if phase == "after_call":
+            try:
+                client.chat_postMessage(
+                    channel=user_id,
+                    text=f"Hey {first_name}! The call already wrapped up for this week. Keep an eye on #{CHANNEL_NAME} for next week's announcement!"
+                )
+            except Exception as e:
+                logger.error(f"Error sending after-call message to {user_id}: {e}")
+            return
+
+        # Send them the invite message and mark them as notified
+        try:
+            dm_message = build_invite_message(first_name, phase)
+            client.chat_postMessage(channel=user_id, text=dm_message)
+            mark_user_notified(user_id, week_of)
+            logger.info(f"New user {user_name} messaged in — sent invite [phase={phase}]")
+        except Exception as e:
+            logger.error(f"Error sending invite to {user_id}: {e}")
+
+        # Also save their message as a topic
+        save_topic(user_id, user_name, text)
+        logger.info(f"Saved topic from new user {user_name}: {text[:50]}...")
+        return
+
+    # Already notified — save topic as before
     save_topic(user_id, user_name, text)
 
     # Confirm receipt
