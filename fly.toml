@@ -1,0 +1,16 @@
+# Quentin on Fly.io: a Socket Mode Slack worker with no public port.
+# Deploy: fly deploy --remote-only
+# Secrets (fly secrets): SLACK_BOT_TOKEN, SLACK_APP_TOKEN, ADMIN_USER_ID
+app = "dao-quentin"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[mounts]
+  source = "quentin_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
