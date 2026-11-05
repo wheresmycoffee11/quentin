@@ -432,7 +432,13 @@ def weekly_reset():
 
 
 # Initialize scheduler
-scheduler = BackgroundScheduler(timezone=TIMEZONE)
+# APScheduler's default misfire grace is 1 second: a job that wakes even a few
+# seconds late is skipped until next week (2026-11-05 lost both 11:00 jobs by 4s).
+# Allow 10 minutes and collapse any backlog into a single run.
+scheduler = BackgroundScheduler(
+    timezone=TIMEZONE,
+    job_defaults={"misfire_grace_time": 600, "coalesce": True},
+)
 
 # Schedule consolidated topics - Thursday at 11:00 AM EST (1 hour before noon call)
 scheduler.add_job(
